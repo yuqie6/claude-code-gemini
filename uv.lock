@@ -162,7 +162,7 @@ wheels = [
 ]
 
 [[package]]
-name = "claude-code-proxy"
+name = "claude-code-gemini"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [

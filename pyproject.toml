@@ -3,12 +3,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "claude-code-proxy"
+name = "claude-code-gemini"
 version = "1.0.0"
-description = "Proxy server enabling Claude Code to work with OpenAI-compatible API providers"
+description = "Claude Code Gemini - 让Claude Code无缝使用Google Gemini API的完美解决方案，支持高级功能如函数并行调用、思考模式等"
 readme = "README.md"
 authors = [
-    {name = "Claude Code Proxy", email = "noreply@example.com"}
+    {name = "Claude Code Gemini", email = "noreply@example.com"}
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -38,12 +38,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/holegots/claude-code-proxy"
-Repository = "https://github.com/holegots/claude-code-proxy.git"
-Issues = "https://github.com/holegots/claude-code-proxy/issues"
+Homepage = "https://github.com/yuqie6/claude-code-gemini"
+Repository = "https://github.com/yuqie6/claude-code-gemini.git"
+Issues = "https://github.com/yuqie6/claude-code-gemini/issues"
 
 [project.scripts]
-claude-code-proxy = "src.main:main"
+claude-code-gemini = "src.main:main"
 
 [tool.uv]
 dev-dependencies = [
@@ -53,6 +53,7 @@ dev-dependencies = [
     "isort>=5.12.0",
     "mypy>=1.0.0",
 ]
+
 
 [tool.black]
 line-length = 100

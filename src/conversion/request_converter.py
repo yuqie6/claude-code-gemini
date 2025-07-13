@@ -305,6 +305,37 @@ def convert_claude_to_gemini(request: ClaudeMessagesRequest) -> dict[str, Any]:
                 part_data = None
                 if block.type == "text":
                     part_data = {"text": block.text}
+                elif block.type == "image":
+                    # Handle image content block - convert Claude format to Gemini format
+                    if hasattr(block, 'source') and block.source:
+                        source = block.source
+                        if source.get('type') == 'base64' and source.get('data'):
+                            # Convert base64 data to bytes and use Gemini's Part.from_bytes format
+                            import base64
+                            from google.genai import types
+
+                            try:
+                                image_bytes = base64.b64decode(source.get('data'))
+                                mime_type = source.get('media_type', 'image/png')
+
+                                # Create Gemini Part object for image
+                                image_part = types.Part.from_bytes(
+                                    data=image_bytes,
+                                    mime_type=mime_type
+                                )
+
+                                # Add the Part object directly to the parts list
+                                parts.append(image_part)
+                                print(f"🖼️ Image content detected - MIME type: {mime_type}, Data length: {len(image_bytes)} bytes")
+                                continue  # Skip the normal part_data processing
+
+                            except Exception as e:
+                                print(f"❌ Failed to process image: {e}")
+                                continue
+                        else:
+                            print(f"⚠️ Unsupported image source format: {source}")
+                    else:
+                        print(f"⚠️ Image block missing source data: {block}")
                 elif block.type == "tool_use":
                     part_data = {"function_call": {"name": block.name, "args": block.input}}
                 elif block.type == "tool_result":

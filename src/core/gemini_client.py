@@ -349,7 +349,14 @@ class GeminiClient(BaseAPIClient):
         print(f"🔍 发送给Gemini的请求:")
         print(f"   Model: {model_name}")
         print(f"   Cached Content: {cached_content_name or 'None'}")
-        print(f"   Contents: {json.dumps(request.get('contents', []), indent=2, ensure_ascii=False)}")
+        # Safe printing of contents (handle non-JSON serializable objects like Part)
+        try:
+            contents_str = json.dumps(request.get('contents', []), indent=2, ensure_ascii=False)
+        except TypeError:
+            # Handle cases where contents contain non-serializable objects (like Part objects)
+            contents = request.get('contents', [])
+            contents_str = f"[{len(contents)} content(s) - contains non-JSON serializable objects like images]"
+        print(f"   Contents: {contents_str}")
         print(f"   Config: {config_obj}")
 
         # 首先尝试主要客户端
