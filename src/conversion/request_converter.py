@@ -437,35 +437,44 @@ def convert_claude_to_gemini(request: ClaudeMessagesRequest) -> dict[str, Any]:
         gemini_request_data['generation_config'] = gen_config
 
     # Handle thinking configuration for Gemini 2.5 models
+    from src.core.config import config
+
+    # Check if thinking should be enabled
+    thinking_enabled = False
     if request.thinking:
+        thinking_enabled = request.thinking.enabled
+    elif config.enable_thinking_by_default:
+        thinking_enabled = True
+        print(f"🧠 Thinking enabled by default configuration")
+
+    if thinking_enabled:
         thinking_config = {}
 
         # Map thinking budget - different defaults for big/small models
-        if hasattr(request.thinking, 'budget') and request.thinking.budget is not None:
+        if request.thinking and hasattr(request.thinking, 'budget') and request.thinking.budget is not None:
             thinking_config['thinking_budget'] = request.thinking.budget
-        elif hasattr(request.thinking, 'enabled'):
-            if request.thinking.enabled:
-                # Choose budget based on model type
-                from src.core.config import config
-                model_name = request.model.lower()
+            print(f"🧠 Using custom thinking budget: {request.thinking.budget}")
+        else:
+            # Choose budget based on model type
+            model_name = request.model.lower()
 
-                # Determine if this is a big model (Pro/Opus/Sonnet) or small model (Haiku/Flash)
-                if any(keyword in model_name for keyword in ['pro', 'opus', 'sonnet', 'big']):
-                    thinking_config['thinking_budget'] = config.big_model_thinking_budget
-                    print(f"🧠 Using big model thinking budget: {config.big_model_thinking_budget}")
-                else:
-                    thinking_config['thinking_budget'] = config.small_model_thinking_budget
-                    print(f"🧠 Using small model thinking budget: {config.small_model_thinking_budget}")
+            # Determine if this is a big model (Pro/Opus/Sonnet) or small model (Haiku/Flash)
+            if any(keyword in model_name for keyword in ['pro', 'opus', 'sonnet', 'big']):
+                thinking_config['thinking_budget'] = config.big_model_thinking_budget
+                print(f"🧠 Using big model thinking budget: {config.big_model_thinking_budget}")
             else:
-                thinking_config['thinking_budget'] = 0   # Disable thinking
+                thinking_config['thinking_budget'] = config.small_model_thinking_budget
+                print(f"🧠 Using small model thinking budget: {config.small_model_thinking_budget}")
 
         # Include thoughts summary if requested
-        if hasattr(request.thinking, 'include_thoughts') and request.thinking.include_thoughts:
+        if request.thinking and hasattr(request.thinking, 'include_thoughts') and request.thinking.include_thoughts:
             thinking_config['include_thoughts'] = True
 
         if thinking_config:
             gemini_request_data['thinking_config'] = thinking_config
             print(f"🧠 Thinking configuration: {thinking_config}")
+    else:
+        print(f"🧠 Thinking disabled for this request")
 
     return gemini_request_data
 

@@ -29,7 +29,6 @@ def convert_gemini_to_claude_response(response_dict: dict[str, Any], model: str,
                 if part.text:
                     # Check if this is a thought summary - FIXED
                     is_thought = getattr(part, 'thought', False)
-                    print(f"🔍 DEBUG: part.text exists, is_thought={is_thought}")
 
                     # Create text block with proper thinking format
                     if is_thought:
@@ -67,21 +66,16 @@ def convert_gemini_to_claude_response(response_dict: dict[str, Any], model: str,
 
     usage_data = gemini_response.usage_metadata
 
-    # Extract thinking tokens if present - DETAILED DEBUG
-    print(f"🔍 DEBUG: usage_data type: {type(usage_data)}")
-    print(f"🔍 DEBUG: usage_data content: {usage_data}")
-
+    # Extract thinking tokens if present
     thoughts_tokens = 0  # Default to 0 instead of None
     if usage_data and hasattr(usage_data, 'thoughts_token_count'):
         raw_thoughts = getattr(usage_data, 'thoughts_token_count', 0)
-        print(f"🔍 DEBUG: Raw thoughts_token_count: {raw_thoughts} (type: {type(raw_thoughts)})")
         thoughts_tokens = raw_thoughts or 0
         if thoughts_tokens > 0:
-            print(f"🧠 Thinking tokens detected in non-streaming response: {thoughts_tokens}")
-        else:
-            print(f"🔍 DEBUG: No thinking tokens found (raw: {raw_thoughts}, processed: {thoughts_tokens})")
+            print(f"🧠 Thinking tokens detected: {thoughts_tokens}")
     else:
-        print(f"🔍 DEBUG: No usage_data or no thoughts_token_count attribute")
+        # Only log if there's an unexpected issue
+        pass
 
     # Create usage object - always include thoughts_token_count if > 0
     usage_dict = {
@@ -92,7 +86,6 @@ def convert_gemini_to_claude_response(response_dict: dict[str, Any], model: str,
     # Add thinking tokens if present
     if thoughts_tokens > 0:
         usage_dict["thoughts_token_count"] = thoughts_tokens
-        print(f"🧠 Adding thoughts_token_count to response: {thoughts_tokens}")
 
     claude_usage = Usage(**usage_dict)
 
@@ -178,10 +171,12 @@ async def convert_gemini_to_claude_stream_response(gemini_stream: AsyncGenerator
         async for chunk_dict in gemini_stream:
             chunk_count += 1
 
-            # Only log chunk details every 20 chunks or if it contains important info (function calls)
+            # Only log important events (function calls) or major milestones
             has_function_call = bool(chunk_dict.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("function_call"))
-            if chunk_count % 20 == 0 or has_function_call:
-                print(f"🔍 Processing Gemini chunk #{chunk_count}" + (" (function call detected)" if has_function_call else " (progress update)"))
+            if has_function_call:
+                print(f"🔧 Function call detected in chunk #{chunk_count}")
+            elif chunk_count % 50 == 0:  # Reduced frequency from every 20 to every 50 chunks
+                print(f"📊 Streaming progress: {chunk_count} chunks processed")
 
             # Send periodic ping to keep connection alive
             if chunk_count % 5 == 0:  # Every 5 chunks
@@ -258,9 +253,9 @@ async def convert_gemini_to_claude_stream_response(gemini_stream: AsyncGenerator
                             sse_event = f"event: {Constants.EVENT_CONTENT_BLOCK_DELTA}\ndata: {json.dumps(delta_data, ensure_ascii=False)}\n\n".encode('utf-8')
                             yield sse_event
 
-                            # Debug log for very small chunks (only log first few to avoid spam)
-                            if chunk_count <= 5 or len(text_to_send) > 10:
-                                print(f"📤 Sent text delta #{chunk_count}: '{text_to_send}' (length: {len(text_to_send)})")
+                            # Only log significant text chunks to reduce noise
+                            if chunk_count <= 3 or len(text_to_send) > 50:  # Reduced logging frequency
+                                pass  # Removed detailed text logging
 
                     # Handle function calls - support parallel function calls with proper indexing
                     elif part.get("function_call"):
@@ -343,16 +338,18 @@ async def convert_gemini_to_claude_stream_response(gemini_stream: AsyncGenerator
                 if usage_metadata.get("thoughts_token_count") is not None:
                     usage_data["thoughts_token_count"] = usage_metadata["thoughts_token_count"]
 
-                # Only log token updates when they change to avoid spam
+                # Only log significant token changes to reduce noise
                 if (usage_data["input_tokens"] != last_token_input or
                     usage_data["output_tokens"] != last_token_output or
                     usage_data["thoughts_token_count"] != last_thoughts_tokens):
 
-                    # Log thinking tokens separately if present
-                    if usage_data["thoughts_token_count"] > 0:
-                        print(f"🔢 Token update - Input: {usage_data['input_tokens']}, Output: {usage_data['output_tokens']}, Thinking: {usage_data['thoughts_token_count']}")
-                    else:
-                        print(f"🔢 Token update - Input: {usage_data['input_tokens']}, Output: {usage_data['output_tokens']}")
+                    # Only log every 100 tokens or if thinking tokens are present
+                    token_change = abs(usage_data["output_tokens"] - last_token_output)
+                    if usage_data["thoughts_token_count"] > 0 or token_change >= 100:
+                        if usage_data["thoughts_token_count"] > 0:
+                            print(f"🔢 Tokens - Input: {usage_data['input_tokens']}, Output: {usage_data['output_tokens']}, Thinking: {usage_data['thoughts_token_count']}")
+                        else:
+                            print(f"🔢 Tokens - Input: {usage_data['input_tokens']}, Output: {usage_data['output_tokens']}")
 
                     last_token_input = usage_data["input_tokens"]
                     last_token_output = usage_data["output_tokens"]

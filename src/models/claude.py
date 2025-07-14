@@ -34,7 +34,7 @@ class ClaudeTool(BaseModel):
     input_schema: Dict[str, Any]
 
 class ClaudeThinkingConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False  # Changed to False to prevent unexpected token consumption
     budget: Optional[int] = None  # Thinking token budget (-1 for dynamic, 0 to disable, >0 for specific amount)
     include_thoughts: bool = False  # Whether to include thought summaries in response
 

@@ -29,7 +29,7 @@ class GeminiClient(BaseAPIClient):
         self._default_cache_ttl = config.cache_ttl_hours * 60 * 60  # Convert hours to seconds
         self._max_cache_ttl = 7 * 24 * 60 * 60  # 7 days maximum
 
-        # 配置主要客户端（自定义端点或官方端点）
+        # 配置Gemini客户端（自定义端点或官方端点）
         if config.gemini_base_url:
             print(f"🔧 使用自定义Gemini端点: {config.gemini_base_url}")
             # 通过HttpOptions直接设置base_url
@@ -40,16 +40,11 @@ class GeminiClient(BaseAPIClient):
                 api_key=config.gemini_api_key,
                 http_options=http_options
             )
-            # 创建fallback客户端（官方端点）
-            self.fallback_client = genai.Client(
-                api_key=config.gemini_api_key
-            )
-            print(f"🔄 Fallback客户端已配置（官方Gemini API）")
         else:
+            print(f"� 使用官方Gemini端点")
             self.client = genai.Client(
                 api_key=config.gemini_api_key
             )
-            self.fallback_client = None
 
     def _load_cache_store(self) -> dict:
         """Load cache store from persistent storage."""
@@ -94,15 +89,13 @@ class GeminiClient(BaseAPIClient):
         """Check if we've seen this content before (client-side cache)."""
         cache_key = self._generate_cache_key(content, model)
 
-        print(f"🔍 Cache Check: Looking for key {cache_key[:16]}...")
-        print(f"🔍 Cache Check: Cache store has {len(self._cache_store)} entries")
+        # Reduced cache check logging
 
         if cache_key in self._cache_store:
             cache_info = self._cache_store[cache_key]
             # Check if cache is still valid
             if datetime.datetime.now(datetime.timezone.utc) < cache_info['expire_time']:
-                remaining = cache_info['expire_time'] - datetime.datetime.now(datetime.timezone.utc)
-                print(f"🗄️ Content cache HIT: {cache_key[:16]}... (remaining: {remaining})")
+                print(f"🗄️ Cache HIT: {cache_key[:16]}...")
                 # Increment hit count
                 cache_info['hit_count'] = cache_info.get('hit_count', 0) + 1
                 self._save_cache_store()
@@ -111,9 +104,8 @@ class GeminiClient(BaseAPIClient):
                 # Cache expired, remove it
                 del self._cache_store[cache_key]
                 self._save_cache_store()
-                print(f"🗄️ Content cache EXPIRED: {cache_key[:16]}...")
-        else:
-            print(f"🔍 Cache Check: Key not found in cache store")
+                print(f"🗄️ Cache EXPIRED: {cache_key[:16]}...")
+        # No need to log cache miss
 
         return None
 
@@ -134,7 +126,7 @@ class GeminiClient(BaseAPIClient):
         # Save to persistent storage
         self._save_cache_store()
 
-        print(f"🗄️ Content cache STORED: {cache_key[:16]}... (TTL: 24h)")
+        print(f"🗄️ Cache STORED: {cache_key[:16]}...")
         return cache_key
 
     def _create_cache_placeholder(self, content: str) -> str:
@@ -258,14 +250,12 @@ class GeminiClient(BaseAPIClient):
             prompt_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0)
             candidates_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0)
 
-            # Handle thinking tokens if present - DETAILED DEBUG
+            # Handle thinking tokens if present
             thoughts_tokens = getattr(response.usage_metadata, 'thoughts_token_count', 0)
-            print(f"🔍 DEBUG: Raw thoughts_token_count from Gemini: {thoughts_tokens} (type: {type(thoughts_tokens)})")
 
             # Ensure thoughts_tokens is not None to avoid comparison errors
             if thoughts_tokens is None:
                 thoughts_tokens = 0
-                print(f"🔍 DEBUG: Converted None to 0")
 
             usage_metadata = {
                 'prompt_token_count': prompt_tokens,
@@ -275,11 +265,7 @@ class GeminiClient(BaseAPIClient):
             # Add thinking tokens if present
             if thoughts_tokens > 0:
                 usage_metadata['thoughts_token_count'] = thoughts_tokens
-                print(f"🧠 Thinking tokens detected and added to usage_metadata: {thoughts_tokens}")
-            else:
-                print(f"🔍 DEBUG: No thinking tokens to add (value: {thoughts_tokens})")
-
-            print(f"🔍 DEBUG: Final usage_metadata: {usage_metadata}")
+                print(f"🧠 Thinking tokens: {thoughts_tokens}")
 
             # Only log token extraction in non-streaming mode to avoid spam
             # (streaming mode logs are handled in response_converter.py)
@@ -298,29 +284,21 @@ class GeminiClient(BaseAPIClient):
         config_obj = self._prepare_config(request)
 
         # Check for cacheable content and create cache if needed
-        cached_content_name = None
         contents = request.get('contents', [])
-
-        print(f"🔍 Cache Debug: contents length = {len(contents)}")
 
         # Try to identify large system content that can be cached
         if contents and len(contents) > 0:
             first_content = contents[0]
-            print(f"🔍 Cache Debug: first_content role = {first_content.get('role')}")
-            print(f"🔍 Cache Debug: first_content has parts = {bool(first_content.get('parts'))}")
 
             if (first_content.get('role') == 'user' and
                 first_content.get('parts') and
                 len(first_content['parts']) > 0):
 
                 first_part = first_content['parts'][0]
-                print(f"🔍 Cache Debug: first_part keys = {list(first_part.keys())}")
 
                 if 'text' in first_part:
                     text_content = first_part['text']
-                    text_length = len(text_content)
                     should_cache = self._should_use_cache(text_content)
-                    print(f"🔍 Cache Debug: text_length = {text_length}, should_cache = {should_cache}")
 
                     if should_cache:
                         # Check client-side cache first
@@ -328,38 +306,19 @@ class GeminiClient(BaseAPIClient):
 
                         if cache_hit:
                             # For cache hit, use a much shorter version
-                            # Extract the actual question/prompt from the end
                             lines = text_content.split('\n')
-                            # Keep only the last few lines which usually contain the actual question
                             short_content = '\n'.join(lines[-5:]) if len(lines) > 5 else text_content
                             first_part['text'] = f"[Previous context cached] {short_content}"
-                            print(f"🔍 Cache Debug: Using shortened content ({len(short_content)} chars vs {len(text_content)} chars)")
+                            print(f"🗄️ Using cached content ({len(short_content)} chars vs {len(text_content)} chars)")
                         else:
                             # Store in client-side cache for future use
                             self._store_content_cache(text_content, model_name)
-                            print(f"🔍 Cache Debug: Content stored in client cache")
-                else:
-                    print(f"🔍 Cache Debug: No 'text' in first_part")
-            else:
-                print(f"🔍 Cache Debug: First content doesn't match cache criteria")
-        else:
-            print(f"🔍 Cache Debug: No contents to cache")
 
-        # 调试：打印实际发送的请求
-        print(f"🔍 发送给Gemini的请求:")
-        print(f"   Model: {model_name}")
-        print(f"   Cached Content: {cached_content_name or 'None'}")
-        # Safe printing of contents (handle non-JSON serializable objects like Part)
-        try:
-            contents_str = json.dumps(request.get('contents', []), indent=2, ensure_ascii=False)
-        except TypeError:
-            # Handle cases where contents contain non-serializable objects (like Part objects)
-            contents = request.get('contents', [])
-            contents_str = f"[{len(contents)} content(s) - contains non-JSON serializable objects like images]"
-        print(f"   Contents: {contents_str}")
-        print(f"   Config: {config_obj}")
+        # Log request summary (reduced verbosity)
+        contents_count = len(request.get('contents', []))
+        print(f"🚀 Gemini request: {model_name} ({contents_count} content blocks)")
 
-        # 首先尝试主要客户端
+        # Send request to Gemini API (removed fallback logic to avoid duplicate requests)
         try:
             response = await self.client.aio.models.generate_content(
                 model=model_name,
@@ -368,26 +327,9 @@ class GeminiClient(BaseAPIClient):
             )
             return self._response_to_dict(response)
         except Exception as e:
-            print(f"⚠️  主要Gemini端点失败: {str(e)}")
-
-            # 如果有fallback客户端，尝试使用它
-            if self.fallback_client:
-                print(f"🔄 尝试使用Fallback端点（官方Gemini API）...")
-                try:
-                    response = await self.fallback_client.aio.models.generate_content(
-                        model=model_name,
-                        contents=request.get('contents') or [],
-                        config=config_obj
-                    )
-                    print(f"✅ Fallback成功")
-                    return self._response_to_dict(response)
-                except Exception as fallback_e:
-                    print(f"❌ Fallback也失败: {str(fallback_e)}")
-                    traceback.print_exc()
-                    raise HTTPException(status_code=500, detail=f"Both primary and fallback Gemini APIs failed. Primary: {str(e)}, Fallback: {str(fallback_e)}")
-            else:
-                traceback.print_exc()
-                raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
+            print(f"❌ Gemini API failed: {str(e)}")
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
 
     async def create_chat_completion_stream(
         self, request: dict[str, Any], request_id: str
@@ -397,10 +339,7 @@ class GeminiClient(BaseAPIClient):
         config_obj = self._prepare_config(request)
 
         # Check for cacheable content and create cache if needed (same logic as non-streaming)
-        cached_content_name = None
         contents = request.get('contents', [])
-
-        print(f"🔍 Stream Cache Debug: contents length = {len(contents)}")
 
         if contents and len(contents) > 0:
             first_content = contents[0]
@@ -411,9 +350,7 @@ class GeminiClient(BaseAPIClient):
                 first_part = first_content['parts'][0]
                 if 'text' in first_part:
                     text_content = first_part['text']
-                    text_length = len(text_content)
                     should_cache = self._should_use_cache(text_content)
-                    print(f"🔍 Stream Cache Debug: text_length = {text_length}, should_cache = {should_cache}")
 
                     if should_cache:
                         # Check client-side cache first
@@ -424,17 +361,16 @@ class GeminiClient(BaseAPIClient):
                             lines = text_content.split('\n')
                             short_content = '\n'.join(lines[-5:]) if len(lines) > 5 else text_content
                             first_part['text'] = f"[Previous context cached] {short_content}"
-                            print(f"🔍 Stream Cache Debug: Using shortened content ({len(short_content)} chars vs {len(text_content)} chars)")
+                            print(f"🗄️ Stream using cached content ({len(short_content)} chars vs {len(text_content)} chars)")
                         else:
                             # Store in client-side cache for future use
                             self._store_content_cache(text_content, model_name)
-                            print(f"🔍 Stream Cache Debug: Content stored in client cache")
 
-        # Debug logging for streaming request
-        print(f"🔍 Gemini streaming request - Model: {model_name}, Request ID: {request_id}")
-        print(f"🔍 Cached Content: {cached_content_name or 'None'}")
+        # Log streaming request start
+        contents_count = len(contents)
+        print(f"🌊 Streaming: {model_name} ({contents_count} content blocks)")
 
-        # First try primary client
+        # Send request to Gemini API (removed fallback logic to avoid duplicate requests)
         try:
             stream = await self.client.aio.models.generate_content_stream(
                 model=model_name,
@@ -446,33 +382,12 @@ class GeminiClient(BaseAPIClient):
                 yield chunk_dict
 
         except Exception as e:
-            print(f"⚠️  Primary Gemini streaming endpoint failed: {str(e)}")
-
-            # Try fallback client if available
-            if self.fallback_client:
-                print(f"🔄 Trying fallback endpoint for streaming (Official Gemini API)...")
-                try:
-                    stream = await self.fallback_client.aio.models.generate_content_stream(
-                        model=model_name,
-                        contents=request.get('contents') or [],
-                        config=config_obj
-                    )
-                    async for chunk in stream:
-                        chunk_dict = self._response_to_dict(chunk)
-                        yield chunk_dict
-                    print(f"✅ Fallback streaming successful")
-                    return
-                except Exception as fallback_e:
-                    print(f"❌ Fallback streaming also failed: {str(fallback_e)}")
-                    traceback.print_exc()
-                    error_message = f"Both primary and fallback Gemini streaming APIs failed. Primary: {str(e)}, Fallback: {str(fallback_e)}"
-            else:
-                traceback.print_exc()
-                error_message = f"Gemini API streaming error: {str(e)}"
+            print(f"❌ Gemini streaming API failed: {str(e)}")
+            traceback.print_exc()
 
             # Yield error response in consistent format
             error_response = {
                 "type": "error",
-                "error": {"type": "api_error", "message": error_message},
+                "error": {"type": "api_error", "message": f"Gemini API streaming error: {str(e)}"},
             }
             yield error_response

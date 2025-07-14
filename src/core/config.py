@@ -26,9 +26,9 @@ class Config:
         self.small_model = os.environ.get("SMALL_MODEL", "gemini-2.5-flash")
 
         # Thinking settings for Gemini 2.5 models - separate for big/small models
-        self.big_model_thinking_budget = int(os.environ.get("BIG_MODEL_THINKING_BUDGET", "-1"))    # Pro models: dynamic thinking
-        self.small_model_thinking_budget = int(os.environ.get("SMALL_MODEL_THINKING_BUDGET", "10000"))  # Flash models: conservative budget
-        self.enable_thinking_by_default = os.environ.get("ENABLE_THINKING_BY_DEFAULT", "true").lower() == "true"
+        self.big_model_thinking_budget = int(os.environ.get("BIG_MODEL_THINKING_BUDGET", "5000"))    # Pro models: conservative budget (was -1)
+        self.small_model_thinking_budget = int(os.environ.get("SMALL_MODEL_THINKING_BUDGET", "1000"))  # Flash models: conservative budget
+        self.enable_thinking_by_default = os.environ.get("ENABLE_THINKING_BY_DEFAULT", "false").lower() == "true"  # Changed default to false
 
         # Cache settings - Client-side content caching to reduce token usage
         self.enable_content_cache = os.environ.get("ENABLE_CONTENT_CACHE", "false").lower() == "true"
