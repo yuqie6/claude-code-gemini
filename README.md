@@ -1,11 +1,8 @@
 
-> ⚠️🔥 **重要提醒：当前版本Token消耗巨大，请谨慎使用！**
+> ⚠️🔥 **重要提醒：claude code Token消耗巨大，请谨慎使用！**
 >
-> 
-> 作者也不知道为什么，正在找原因…… 🥲 作者穷，没用过claude官方key
-> 作者最近才听说cc并使用, 所以很多cc的功能可能不知道
-
-
+> cc 版本日新月异, 而此项目已经年久失修, 可能出现一些特性不兼容的情况
+> 非常欢迎并期待有佬友能在我的一堆屎山代码里面提出建议, 作者总是没有 issue 通知, 回复不及时的情况非常抱歉🙌
 
 <div align="center">
   <img src="show.png" alt="项目演示" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px #0002; margin-bottom: 16px;" />
@@ -99,6 +96,7 @@ $env:ANTHROPIC_API_KEY="any-key"
 
 claude  # 现在Claude Code使用的是Gemini API
 ```
+> 如果出现了需要账户的情况, 请选择api账户, 只要在welcome界面的base url显示的是http://127.0.0.1:端口, 即可使用
 
 ## ⚙️ 配置说明
 
@@ -177,7 +175,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件。
 ### 7. 其他注意事项
 - ANTHROPIC_API_KEY 仅作占位，实际鉴权由 .env 中 GEMINI_API_KEY 决定。
 - 本项目为魔改版，非官方产品，遇到问题欢迎提 issue 反馈。
-
+  
 如有更多兼容性或功能建议，欢迎在 GitHub issue 区留言！
 
 
